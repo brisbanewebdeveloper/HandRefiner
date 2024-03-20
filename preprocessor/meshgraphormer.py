@@ -43,7 +43,7 @@ from packaging import version
 args = Namespace(
     num_workers=4,
     img_scale_factor=1,
-    image_file_or_path=os.path.join(handrefiner_root, 'MeshGraphormer', 'samples', 'hand'), 
+    image_file_or_path=os.path.join(handrefiner_root, 'MeshGraphormer', 'samples', 'hand'),
     model_name_or_path=os.path.join(handrefiner_root, 'MeshGraphormer', 'src', 'modeling', 'bert', 'bert-base-uncased'),
     resume_checkpoint=os.path.join(handrefiner_root, 'MeshGraphormer', 'models', 'graphormer_release', 'graphormer_hand_state_dict.bin'),
     output_dir='output/',
@@ -63,7 +63,7 @@ args = Namespace(
     seed=88
 )
 
-#Since mediapipe v0.10.5, the hand category has been correct
+# Since mediapipe v0.10.5, the hand category has been correct
 if version.parse(mp.__version__) >= version.parse('0.10.5'):
     true_hand_category = {"Right": "right", "Left": "left"}
 else:
@@ -113,7 +113,7 @@ class MeshGraphormerMediapipe(Preprocessor):
                         else args.model_name_or_path)
 
                 config.output_attentions = False
-                config.img_feature_dim = input_feat_dim[i] 
+                config.img_feature_dim = input_feat_dim[i]
                 config.output_feature_dim = output_feat_dim[i]
                 args.hidden_size = hidden_feat_dim[i]
                 args.intermediate_size = int(args.hidden_size*2)
@@ -137,20 +137,35 @@ class MeshGraphormerMediapipe(Preprocessor):
 
                 # init a transformer encoder and append it to a list
                 assert config.hidden_size % config.num_attention_heads == 0
-                model = model_class(config=config) 
+                model = model_class(config=config)
                 #logger.info("Init model from scratch.")
                 trans_encoder.append(model)
-            
+
+            root_path = os.path.join(os.path.dirname(__file__))
+
             # create backbone model
-            if args.arch=='hrnet':
-                hrnet_yaml = 'MeshGraphormer/models/hrnet/cls_hrnet_w40_sgd_lr5e-2_wd1e-4_bs32_x100.yaml'
-                hrnet_checkpoint = 'MeshGraphormer/models/hrnet/hrnetv2_w40_imagenet_pretrained.pth'
+            if args.arch == 'hrnet':
+                hrnet_yaml = os.path.join(
+                    root_path,
+                    '../MeshGraphormer/models/hrnet/cls_hrnet_w40_sgd_lr5e-2_wd1e-4_bs32_x100.yaml'
+                )
+                hrnet_checkpoint = os.path.join(
+                    root_path,
+                    '../MeshGraphormer/models/hrnet/hrnetv2_w40_imagenet_pretrained.pth'
+                )
                 hrnet_update_config(hrnet_config, hrnet_yaml)
-                backbone = get_cls_net_gridfeat(hrnet_config, pretrained=hrnet_checkpoint)
-                #logger.info('=> loading hrnet-v2-w40 model')
-            elif args.arch=='hrnet-w64':
-                hrnet_yaml = 'MeshGraphormer/models/hrnet/cls_hrnet_w64_sgd_lr5e-2_wd1e-4_bs32_x100.yaml'
-                hrnet_checkpoint = 'MeshGraphormer/models/hrnet/hrnetv2_w64_imagenet_pretrained.pth'
+                backbone = get_cls_net_gridfeat(
+                    hrnet_config, pretrained=hrnet_checkpoint)
+                # logger.info('=> loading hrnet-v2-w40 model')
+            elif args.arch == 'hrnet-w64':
+                hrnet_yaml = os.path.join(
+                    root_path,
+                    '../MeshGraphormer/models/hrnet/cls_hrnet_w64_sgd_lr5e-2_wd1e-4_bs32_x100.yaml'
+                )
+                hrnet_checkpoint = os.path.join(
+                    root_path,
+                    '../MeshGraphormer/models/hrnet/hrnetv2_w64_imagenet_pretrained.pth'
+                )
                 hrnet_update_config(hrnet_config, hrnet_yaml)
                 backbone = get_cls_net_gridfeat(hrnet_config, pretrained=hrnet_checkpoint)
                 #logger.info('=> loading hrnet-v2-w64 model')
@@ -194,13 +209,19 @@ class MeshGraphormerMediapipe(Preprocessor):
         self.mano_model = mano_model
         self.mesh_sampler = mesh_sampler
 
-        self.transform = transforms.Compose([           
+        self.transform = transforms.Compose([
                     transforms.ToTensor(),
                     transforms.Normalize(
                         mean=[0.485, 0.456, 0.406],
                         std=[0.229, 0.224, 0.225])])
-        
-        base_options = python.BaseOptions(model_asset_path='preprocessor/hand_landmarker.task')
+
+        model_asset_path = os.path.join(
+            os.path.dirname(__file__),
+            'hand_landmarker.task'
+        )
+
+        base_options = python.BaseOptions(
+            model_asset_path=model_asset_path)
         options = vision.HandLandmarkerOptions(base_options=base_options,
                                             min_hand_detection_confidence=0.6,
                                             min_hand_presence_confidence=0.6,
@@ -208,10 +229,10 @@ class MeshGraphormerMediapipe(Preprocessor):
                                             num_hands=2)
 
         self.detector = vision.HandLandmarker.create_from_options(options)
-        
-    
+
+
     def get_rays(self, W, H, fx, fy, cx, cy, c2w_t, center_pixels): # rot = I
-   
+
         j, i = np.meshgrid(np.arange(H, dtype=np.float32), np.arange(W, dtype=np.float32))
         if center_pixels:
             i = i.copy() + 0.5
@@ -226,7 +247,7 @@ class MeshGraphormerMediapipe(Preprocessor):
         rays_d = (rays_d / np.linalg.norm(rays_d, axis=-1, keepdims=True)).reshape(-1,3)
 
         return rays_o, rays_d
-    
+
     def get_mask_bounding_box(self, extrema, H, W, padding=30, dynamic_resize=0.15):
         x_min, x_max, y_min, y_max = extrema
         bb_xpad = max(int((x_max - x_min + 1) * dynamic_resize), padding)
@@ -245,7 +266,7 @@ class MeshGraphormerMediapipe(Preprocessor):
         with torch.no_grad():
             img_tensor = self.transform(img)
             batch_imgs = torch.unsqueeze(img_tensor, 0).cuda()
-            
+
             # forward-pass
             pred_camera, pred_3d_joints, pred_vertices_sub, pred_vertices, hidden_states, att = Graphormer_model(batch_imgs, mano, mesh_sampler)
 
@@ -275,7 +296,7 @@ class MeshGraphormerMediapipe(Preprocessor):
             tri_index = tri_index[index_ray]
 
             assert len(index_ray) == len(tri_index)
-            
+
             discriminator = (np.sum(mesh.face_normals[tri_index]* rays_d[index_ray], axis=-1)<= 0)
             points = points[discriminator] # ray intesects in interior faces, discard them
 
@@ -296,7 +317,7 @@ class MeshGraphormerMediapipe(Preprocessor):
 
     def get_depth(self, input_dir, file_name, padding):
         info = {}
-        
+
         image_file = os.path.join(input_dir, file_name)
 
         # STEP 3: Load the input image.
@@ -352,12 +373,12 @@ class MeshGraphormerMediapipe(Preprocessor):
             y_max = int(max(y_coordinates) * height)
             y_c = (y_min + y_max)//2
 
-            #if x_max - x_min < 60 or y_max - y_min < 60:
+            # if x_max - x_min < 60 or y_max - y_min < 60:
             #    continue
 
-            crop_len = (max(x_max - x_min, y_max - y_min) * 1.6) //2 * 2
+            crop_len = (max(x_max - x_min, y_max - y_min) * 1.6) // 2 * 2
 
-            # crop_x_min, crop_x_max, crop_y_min, crop_y_max: bounding box for mesh reconstruction 
+            # crop_x_min, crop_x_max, crop_y_min, crop_y_max: bounding box for mesh reconstruction
             crop_x_min = int(x_c - (crop_len/2 - 1) + W/2)
             crop_x_max = int(x_c + crop_len/2 + W/2)
             crop_y_min = int(y_c - (crop_len/2 - 1) + H/2)
@@ -374,15 +395,15 @@ class MeshGraphormerMediapipe(Preprocessor):
             else:
                 graphormer_input = cv2.resize(cropped, (224, 224), interpolation=cv2.INTER_AREA)
             scale = crop_len/224
-            cropped_depthmap, pred_2d_keypoints = self.run_inference(graphormer_input.astype(np.uint8), self._model, self.mano_model, self.mesh_sampler, scale, int(crop_len)) 
+            cropped_depthmap, pred_2d_keypoints = self.run_inference(graphormer_input.astype(np.uint8), self._model, self.mano_model, self.mesh_sampler, scale, int(crop_len))
 
             if cropped_depthmap is None:
                 print("Depth reconstruction failed for image {}".format(file_name))
                 depth_failure = True
                 break
-            #keypoints_image_space = pred_2d_keypoints * (crop_y_max - crop_y_min + 1)/224
+            # keypoints_image_space = pred_2d_keypoints * (crop_y_max - crop_y_min + 1)/224
             groundtruth_2d_keypoints.append(pred_2d_keypoints)
-            
+
             if hand == "left":
                 cropped_depthmap = cv2.flip(cropped_depthmap, 1)
             resized_cropped_depthmap = cv2.resize(cropped_depthmap, (int(crop_len), int(crop_len)), interpolation=cv2.INTER_LINEAR)
@@ -397,7 +418,7 @@ class MeshGraphormerMediapipe(Preprocessor):
             # coordinates of nonzero depth pixels in original image space
             original_nonzero_x = crop_x_min+nonzero_x - int(W/2)
             original_nonzero_y = crop_y_min+nonzero_y - int(H/2)
-            
+
             nonzerox_min = min(np.min(original_nonzero_x), x_min)
             nonzerox_max = max(np.max(original_nonzero_x), x_max)
             nonzeroy_min = min(np.min(original_nonzero_y), y_min)
@@ -405,9 +426,9 @@ class MeshGraphormerMediapipe(Preprocessor):
 
             bbx_min, bbx_max, bby_min, bby_max = self.get_mask_bounding_box((nonzerox_min, nonzerox_max, nonzeroy_min, nonzeroy_max), H, W, padding)
             mask[bby_min:bby_max+1, bbx_min:bbx_max+1] = 1.0
-            #bboxes.append([int(bbx_min), int(bbx_max), int(bby_min), int(bby_max)])
+            # bboxes.append([int(bbx_min), int(bbx_max), int(bby_min), int(bby_max)])
         if depth_failure:
-            #print("cannot detect normal hands")
+            # print("cannot detect normal hands")
             return None, None, None
         depthmap = padded_depthmap[int(1/2 * H):int(3/2 * H), int(1/2 * W):int(3/2 * W)].astype(np.uint8)
         mask = (255.0 * mask).astype(np.uint8)
@@ -416,16 +437,16 @@ class MeshGraphormerMediapipe(Preprocessor):
         info["crop_boxes"] = crop_boxes
         info["crop_lens"] = crop_lens
         return depthmap, mask, info
-    
+
     def get_keypoints(self, img, Graphormer_model, mano, mesh_sampler, scale, crop_len):
         H, W = int(crop_len), int(crop_len)
         Graphormer_model.eval()
         mano.eval()
         with torch.no_grad():
             img_tensor = self.transform(img)
-            #print(img_tensor)
+            # print(img_tensor)
             batch_imgs = torch.unsqueeze(img_tensor, 0).cuda()
-            
+
             # forward-pass
             pred_camera, pred_3d_joints, pred_vertices_sub, pred_vertices, hidden_states, att = Graphormer_model(batch_imgs, mano, mesh_sampler)
 
@@ -443,9 +464,9 @@ class MeshGraphormerMediapipe(Preprocessor):
             pred_3d_joints_camera = pred_3d_joints_from_mesh.cpu()[0] - camera_t
             z_3d_dist = pred_3d_joints_camera[:,2].clone()
             pred_2d_joints_img_space = ((pred_3d_joints_camera/z_3d_dist[:,None]) * np.array((focal_length, focal_length, 1)))[:,:2] + np.array((W/2, H/2))
-            
+
         return pred_2d_joints_img_space
-    
+
 
     def eval_mpjpe(self, sample, info):
         H, W, C = sample.shape
