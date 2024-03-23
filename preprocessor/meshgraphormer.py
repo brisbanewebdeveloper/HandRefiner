@@ -60,7 +60,12 @@ args = Namespace(
     mesh_type='hand',
     run_eval_only=True,
     device='cuda',
-    seed=88
+    seed=88,
+    log_prefix='',
+    min_hand_detection_confidence=0.6,
+    min_hand_presence_confidence=0.6,
+    min_tracking_confidence=0.6,
+    num_hands=2,
 )
 
 # Since mediapipe v0.10.5, the hand category has been correct
@@ -71,6 +76,9 @@ else:
 
 class MeshGraphormerMediapipe(Preprocessor):
     def __init__(self, args=args) -> None:
+
+        log_prefix = args.log_prefix
+
         #global logger
         # Setup CUDA, GPU & distributed training
         args.num_gpus = int(os.environ['WORLD_SIZE']) if 'WORLD_SIZE' in os.environ else 1
@@ -220,13 +228,24 @@ class MeshGraphormerMediapipe(Preprocessor):
             'hand_landmarker.task'
         )
 
-        base_options = python.BaseOptions(
-            model_asset_path=model_asset_path)
+        min_hand_detection_confidence = args.min_hand_detection_confidence
+        print(f"{log_prefix} min_hand_detection_confidence: {min_hand_detection_confidence}")
+
+        min_hand_presence_confidence = args.min_hand_presence_confidence
+        print(f"{log_prefix} min_hand_presence_confidence: {min_hand_presence_confidence}")
+
+        min_tracking_confidence = args.min_tracking_confidence
+        print(f"{log_prefix} min_tracking_confidence: {min_tracking_confidence}")
+
+        num_hands = args.num_hands
+        print(f"{log_prefix} num_hands: {num_hands}")
+
+        base_options = python.BaseOptions(model_asset_path=model_asset_path)
         options = vision.HandLandmarkerOptions(base_options=base_options,
-                                            min_hand_detection_confidence=0.6,
-                                            min_hand_presence_confidence=0.6,
-                                            min_tracking_confidence=0.6,
-                                            num_hands=2)
+                                            min_hand_detection_confidence=min_hand_detection_confidence,
+                                            min_hand_presence_confidence=min_hand_presence_confidence,
+                                            min_tracking_confidence=min_tracking_confidence,
+                                            num_hands=num_hands)
 
         self.detector = vision.HandLandmarker.create_from_options(options)
 
