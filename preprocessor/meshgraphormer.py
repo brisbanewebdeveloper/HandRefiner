@@ -269,8 +269,8 @@ class MeshGraphormerMediapipe(Preprocessor):
 
     def get_mask_bounding_box(self, extrema, H, W, padding=30, dynamic_resize=0.15):
         x_min, x_max, y_min, y_max = extrema
-        bb_xpad = max(int((x_max - x_min + 1) * dynamic_resize), padding)
-        bb_ypad = max(int((y_max - y_min + 1) * dynamic_resize), padding)
+        bb_xpad = min(int((x_max - x_min + 1) * dynamic_resize), padding)
+        bb_ypad = min(int((y_max - y_min + 1) * dynamic_resize), padding)
         bbx_min = np.max((x_min - bb_xpad, 0))
         bbx_max = np.min((x_max + bb_xpad, W-1))
         bby_min = np.max((y_min - bb_ypad, 0))
